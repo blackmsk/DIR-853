@@ -1,20 +1,40 @@
 #!/bin/bash
-#
-# https://github.com/P3TERX/Actions-OpenWrt
-# File name: diy-part2.sh
-# Description: OpenWrt DIY script part 2 (After Update feeds)
-#
-# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
 
-# Modify default IP
-#sed -i 's/192.168.1.1/192.168.50.5/g' package/base-files/files/bin/config_generate
+# 1. 패치 경로 미리 생성
+mkdir -p package/kernel/mt76/patches
 
-# Modify default theme
-#sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
+# 2. MT7615 5GHz 성능 저하 해결 패치 생성 (DragonBluep & Issue #531 통합)
+cat << 'EOF' > package/kernel/mt76/patches/999-fix-mt7615-performance.patch
+--- a/mt7615/eeprom.c
++++ b/mt7615/eeprom.c
+@@ -204,15 +204,6 @@ int mt7615_eeprom_get_target_power_index
+ 	if (chain_idx > 3)
+ 		return -EINVAL;
+ 
+-	/* TSSI disabled */
+-	if (mt7615_ext_pa_enabled(dev, chan->band)) {
+-		if (chan->band == NL80211_BAND_2GHZ)
+-			return MT_EE_EXT_PA_2G_TARGET_POWER;
+-		else
+-			return MT_EE_EXT_PA_5G_TARGET_POWER;
+-	}
+-
+-	/* TSSI enabled */
+ 	if (chan->band == NL80211_BAND_2GHZ) {
+ 		index = MT_EE_TX0_2G_TARGET_POWER + chain_idx * 6;
+ 	} else {
+--- a/mt7615/init.c
++++ b/mt7615/init.c
+@@ -285,7 +285,7 @@ void mt7615_init_txpower(struct mt7615_d
+ 	    (MT_EE_RATE_POWER_EN | MT_EE_RATE_POWER_SIGN))
+ 		delta += rate_val & MT_EE_RATE_POWER_MASK;
+ 
+-	if (!is_mt7663(&dev->mt76) && mt7615_ext_pa_enabled(dev, band))
++	if (!is_mt7663(&dev->mt76) && !mt7615_ext_pa_enabled(dev, band))
+ 		target_chains = 1;
+ 	else
+ 		target_chains = n_chains;
+EOF
 
-# Modify hostname
-#sed -i 's/OpenWrt/P3TERX-Router/g' package/base-files/files/bin/config_generate
+# 3. 찌꺼기 파일 제거 (업로드 에러 방지)
+sudo rm -f /swapfile || true
